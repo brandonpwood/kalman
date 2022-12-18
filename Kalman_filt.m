@@ -37,28 +37,29 @@
 
 
 function [s_hat, sig_hat, K] = Kalman_filt(A, R, C, Q, store_st_mm, x, num_tar, n)
+    % Initialize return functions to zero
     s_hat = zeros(4*num_tar, n);
     sig_hat = zeros( 4*num_tar, 4*num_tar, n);
     K = zeros(4*num_tar, 2*num_tar, n);
+    
+    % Keep track of predictions
     s_preds = zeros(4, num_tar, n); 
     y_preds = zeros(2, num_tar, n);
     sig_preds = zeros(4, 4, num_tar, n);
-    % TODO: Figure out what this should be
-%    initial_variance = zeros(
-%    initial_state = store_st_mm(5:6, 1, 1);
-
     for i = [1:n]
-        if (i == 1)
-            % Initial estimation
-            s_0 = [0;0;0;0];            
-            y_0 = C*s_0;
-            sig_0 = ones(4, 4);
-            
+        if i == 1
+            %Intialize slices for this point in time 
             K_acc = zeros(4*num_tar, 2*num_tar); 
             s_acc = [];
             sigma_acc = zeros(4*num_tar, 4*num_tar);
+            
             % Iterate over targets        
             for tar = [1:num_tar]
+                % Initial estimation
+                s_0 = [1.25;2.25;.25;3.25];   
+                y_0 = C*s_0;
+                sig_0 = 10*ones(4, 4);
+                
                 % Recursive updates
                 q = Q(:, :, tar);
                 r = R(:, :, tar);
@@ -85,7 +86,7 @@ function [s_hat, sig_hat, K] = Kalman_filt(A, R, C, Q, store_st_mm, x, num_tar, 
                 % Compute new predictions
                 s_pred = A*s_est;
                 y_pred = C*s_pred;               
-                sigma_pred = A*sigma_j*(A.') + r;
+                sigma_pred = A*sigma_est*(A.') + r;
                 
                 s_preds (:, tar, i) = s_pred;
                 y_preds(:, tar,i) = y_pred;
@@ -97,10 +98,11 @@ function [s_hat, sig_hat, K] = Kalman_filt(A, R, C, Q, store_st_mm, x, num_tar, 
             sig_hat(:, :, i) = sigma_acc;
    
         else
-            sigma = sig_hat(:, :, i-1);
+            %sigma = sig_hat(:, :, i-1);
             % Make arrays to store results for each target (state estimates)
             K_acc = zeros(4*num_tar, 2*num_tar); 
             s_acc = [];
+            
             sigma_acc = zeros(4*num_tar, 4*num_tar);
             
             
@@ -109,12 +111,13 @@ function [s_hat, sig_hat, K] = Kalman_filt(A, R, C, Q, store_st_mm, x, num_tar, 
                 % Recursive updates
                 q = Q(:, :, tar);
                 r = R(:, :, tar);
-                slice_x = 1 + (tar-1)*4;
-                slice_y = slice_x + 3;
-                sigma_j = sigma(slice_x : slice_y,slice_x : slice_y);
-                
+                %slice_x = 1 + (tar-1)*4;
+                %slice_y = slice_x + 3;
+                %sigma_j = sigma(slice_x : slice_y, slice_x : slice_y);
+                sigma_j = sig_preds(:, :, tar, i-1);
                 % Update K
-                k_i = sigma_j*(C.')*((C*sigma_j *(C.') + q)^-1);
+                k_i = sigma_j*(C.')* (inv (C*sigma_j *(C.') + q) );
+
                 s = size(k_i);
                 K_acc = insert_diagonal(K_acc, (tar-1)*s(1), (tar-1)*s(2), k_i); % append to acculumator
                 
@@ -134,14 +137,15 @@ function [s_hat, sig_hat, K] = Kalman_filt(A, R, C, Q, store_st_mm, x, num_tar, 
                 % Compute new predictions
                 s_pred = A*s_est;
                 y_pred = C*s_pred;               
-                sigma_pred = A*sigma_j*(A.') + r;
+                sigma_pred = A*sigma_est*(A.') + r;
                 
                 s_preds (:, tar, i) = s_pred;
                 y_preds(:, tar,i) = y_pred;
                 sig_preds(:, :, tar, i) = sigma_pred;
             end
             % Reformat Arrays Across Targets            
-            K(:, :, i) = K_acc; 
+            K(:, :, i) = K_acc;
+            K(:, :, i);
             s_hat (:, i) = s_acc;
             sig_hat(:, :, i) = sigma_acc;
             
