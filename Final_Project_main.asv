@@ -110,6 +110,92 @@ n = duration;              % number of time steps
             % the individual time steps. The blocks within a layer should should correspond
             % to the Kalman Gain matrices of different targets.
 
+% be careful not to add anything to to offest (ie; inserting in the first
+% element would be x = 0, y = 0)
+function insert_diagonal(target, x, y, value)
+    s = size(value);
+    for i = [1:s(1)]
+        for j = [1:s(2)]
+            target(x+i, y+j) = value(i, j);
+        end
+    end
+end
+
+function [s_hat, sig_hat, K] = Kalman_filt(A, R, C, Q, store_st_mm, x, num_tar, n)
+    s_hat = zeros(4*num_tar, n);
+    sig_hat = zeros( 4*num_tar, 4*num_tar, n);
+    K = zeros(4*num_tar, 2*num_tar, n);
+    s_preds = zeros(4, num_tar, n); 
+    y_preds = zeros(2, num_tar, n);
+    % TODO: Figure out what this should be
+    initial_variance = zeros(
+    initial_state = ()
+    for i = [1:n]
+        if (i == 1)
+            % Initial estimation
+            k = sigma*(C.')*(C*sigma *(C.') + Q0)^-1;
+        else
+            sigma = sig_hat(:, :, i-1);
+            % Make arrays to store results for each target (state estimates)
+            K_acc = zeros(4*num_tar, 2*num_tar); 
+            s_acc = [];
+            sigma_acc = zeros(4*num_tar, 4*num_tar);
+            % Make arrays to store results from each target (predictions)
+            s_pred_acc  = [];
+            y_pred_acc  = [];
+            sigma_pred_acc  = [];
+            
+            
+            % Iterate over targets
+            for tar = [1:num_targets]
+                % Recursive updates
+                q = Q(:, :, tar);
+                r = R(:, :, tar);
+                slice_x = 1 + (tar-1)*4;
+                slice_y = slice_x + 3;
+                sigma_j = sigma(slice_x : slice_y,slice_x : slice_y);
+                
+                % Update K
+                k = sigma_j*(C.')*((C*sigma_j *(C.') + q)^-1);
+                s = size(k);
+                insert_diagonal(K_acc, (tar-1)*s(1), (tar-1)*s(2), k); % append to acculumator
+                
+                % Estimate State
+                s_prev = s_preds(:, tar, i-1);
+                y_prev = y_preds(:, tar, i-1);
+                y_meas = store_st_mm(5:6, i, tar); % Extract measurements from input data
+                s_est = s_prev + k*(y_meas - y_prev); % new best estimate of s
+                s_acc = [s_acc s_est];
+                
+                % Compute covariance
+                sigma_est = sigma_j - k*C*sigma_j;
+                insert_diagonal (sigma_acc, , , sigma_est);
+                
+                
+                % Compute new predictions
+                s_pred = A*s;
+                
+                y_pred = C*s_pred;
+                
+                sigma_pred = A*sigma_j*(A.') + r;
+                
+                s_pred_acc  = [s_pred_acc s_pred];
+                y_pred_acc  = [y_pred_acc y_pred];
+                sigma_pred_acc  = [sigma_pred_acc sigma_pred];                
+            end
+            % Reformat Arrays Across Targets            
+            K(:, :, i) = K_acc; 
+            s_hat (:, i) = s_acc;
+            sigma_acc = [];
+            s_pred_acc  = [];
+            y_pred_acc  = [];
+            sigma_pred_acc  = [];
+            
+            % Update Return Variables and Prediction Storage
+            
+        end
+    end
+end   
 % specify the target number for Kalman filtering 
 [s_hat, sig_hat, K] = Kalman_filt(A, R, C, Q, Store_st_mm, x, num_tar, n);
 
